@@ -1,0 +1,19 @@
+study("Price Divergence from 20 EMA")
+
+// Calculate the 20-day EMA
+len = 20
+ema = ema(close, len)
+
+// Calculate the divergence
+divergence = close - ema
+
+// Plot the divergence
+plot(divergence, color=blue, linewidth=2, title="Divergence from 20 EMA")
+
+// Plot the zero line
+hline(0, linestyle=dashed, color=gray, title="Zero Line")
+
+// Add visual helpers
+h1 = hline(0.5, linestyle=dotted, color=green, title="+0.5")
+h2 = hline(-0.5, linestyle=dotted, color=red, title="-0.5")
+fill(h1, h2, color=violet, transp=90, title="Divergence Zone")
