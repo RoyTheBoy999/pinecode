@@ -1,0 +1,28 @@
+study("Stage 2 Breakout")
+
+len_50 = 50
+len_150 = 150
+len_200 = 200
+sma_50 = sma(close, len_50)
+sma_150 = sma(close, len_150)
+sma_200 = sma(close, len_200)
+
+len_rsi = 14
+rsi = rsi(close, len_rsi)
+rsi_ma = sma(rsi, len_rsi)
+mansfield_rs = (rsi - rsi_ma) / rsi_ma
+
+len_vol_avg = 20
+vol_avg = sma(volume, len_vol_avg)
+
+stage_2_signal = (
+    close > sma_150 and
+    sma_150 >= sma_200 and
+    sma_50 >= sma_150 and
+    sma_50 >= sma_200 and
+    close > sma_50 and
+    mansfield_rs > 0 and
+    volume > vol_avg
+)
+
+plotshape(stage_2_signal, title="Stage 2 Signal", style=shape.triangleup, location=location.bottom, color=green, text="Stage 2", textcolor=white)
