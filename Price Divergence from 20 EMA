@@ -7,13 +7,15 @@ ema = ema(close, len)
 // Calculate the divergence
 divergence = close - ema
 
+// Define color functions
+divergenceColor(value) =>
+    value > 0 ? blue : red
+
+divergenceColorIntensity(value) =>
+    value > 0 ? 100 + 155 * value / ema : 100 - 155 * value / ema
+
 // Plot the divergence
-plot(divergence, color=blue, linewidth=2, title="Divergence from 20 EMA")
+plot(divergence, color=divergenceColor(divergence), linewidth=2, title="Divergence from 20 EMA", style=divergenceColorIntensity(divergence))
 
 // Plot the zero line
 hline(0, linestyle=dashed, color=gray, title="Zero Line")
-
-// Add visual helpers
-h1 = hline(0.5, linestyle=dotted, color=green, title="+0.5")
-h2 = hline(-0.5, linestyle=dotted, color=red, title="-0.5")
-fill(h1, h2, color=violet, transp=90, title="Divergence Zone")
