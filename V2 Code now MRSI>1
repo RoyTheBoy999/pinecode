@@ -1,0 +1,98 @@
+//@version=5
+strategy("V5 BING bb 11,1,1hr", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=100)
+
+len = 176 // (this is the fiinal indicator eg 15 by 4 by 4 )
+mul = 1
+
+price = ta.sma(close, 2)
+average = ta.ema(close, len)
+diff = ta.atr(len) * mul
+bull_level = average + diff
+bear_level = average - diff
+
+index = "CRYPTOCAP:TOTAL"
+sector = "CRYPTOCAP:TOTAL"
+industry = "CRYPTOCAP:TOTAL"
+
+ma_type = input.string(title='Which moving average to use?', defval='SMA', options=['SMA', 'WMA', 'EMA'])
+len_daily = input(title='MA length for Daily', defval=200)
+len_weekly = input(title='MA length for Weekly', defval=52)
+len_monthly = input(title='MA length for Monthly', defval=10)
+len_other = input(title='MA length for all other periods', defval=52)
+val = close
+
+len1 = timeframe.period == 'W' ? len_weekly : timeframe.period == 'D' ? len_daily : timeframe.period == 'M' ? len_monthly : len_other
+
+ma_func(x, length) =>
+    wma_1 = ta.wma(x, length)
+    sma_1 = ta.sma(x, length)
+    ema_1 = ta.ema(x, length)
+    ma_type == 'WMA' ? wma_1 : ma_type == 'SMA' ? sma_1 : ema_1
+
+calc_mrs_func(x, ind, length) =>
+    (x / request.security(ind, timeframe.period, x) / ma_func(x / request.security(ind, timeframe.period, x), length) - 1) * 10
+
+mrs_index = calc_mrs_func(val, index, len)
+mrs_sector = calc_mrs_func(val, sector, len)
+mrs_industry = calc_mrs_func(val, industry, len)
+c = math.sign(mrs_index) + math.sign(mrs_sector) + math.sign(mrs_industry)
+
+
+
+
+
+color_1 = color.new(color.green, 80)
+color_2 = color.new(color.green, 75)
+color_3 = color.new(color.green, 70)
+color_4 = color.new(color.red, 70)
+color_5 = color.new(color.red, 75)
+color_6 = color.new(color.red, 80)
+bgcolor(c == 3 ? color_1 : c == 2 ? color_2 : c == 1 ? color_3 : c == -1 ? color_4 : c == -2 ? color_5 : c == -3 ? color_6 : color.gray)
+//plot(mrs_index, linewidth=3, title="MRS index")
+plot(mrs_sector != mrs_index ? mrs_sector : na, linewidth=2, title="MRS sector")
+plot(mrs_industry != mrs_index ? mrs_industry : na, linewidth=1, title="MRS industry")
+hline(price=0, linestyle=hline.style_dashed, title="Zero baseline")
+
+
+bull_cross = mrs_index >1
+bear_cross = mrs_index <1
+//bull_cross = ta.crossover(price, bull_level) and mrs_index >1
+//bear_cross = ta.crossover(bear_level, price) and mrs_index <1
+
+
+strategy.entry("Buy", strategy.long, when=bull_cross)
+//if(bull_cross)
+//    strategy.close("Buy Exit", when= mrs_index <0.5) 
+//    strategy.entry("Buy", strategy.long, when= mrs_index >1) 
+strategy.close("Buy Exit", when=bear_cross)  //strategy.entry("Sell", strategy.short, when=bear_cross)
+
+
+strategy.entry("Short", strategy.short, when=bear_cross)
+strategy.close("Exit Short ", when=bull_cross)
+
+if bull_cross
+    alert("ENTER-LONG_BBUSDT_bblong_ici7qz6y7trg47l0", alert.freq_once_per_bar)  // alert.freq_once_per_bar_close
+if bear_cross 
+    alert("EXIT-LONG_BBUSDT_bblong_yjqvn4f0ewaikbep", alert.freq_once_per_bar)
+alertcondition(bull_cross, title='Bullish EMA LONG', message='ENTER-LONG_BBUSDT_bblong_ici7qz6y7trg47l0')
+alertcondition(bear_cross, title='Bearish EMA EXIT', message='EXIT-LONG_BBUSDT_bblong_yjqvn4f0ewaikbep') 
+//ENTER-SHORT_SOLUSDT_sol short1_y4lterg7bhtu3w7g
+//EXIT-SHORT_SOLUSDT_sol short1_0322lyk927vnlgxk
+
+//if bear_cross
+ //   alert("ENTER-SHORT_SOLUSDT_sol short1_y4lterg7bhtu3w7g", alert.freq_once_per_bar)  // alert.freq_once_per_bar_close
+//if bull_cross 
+//    alert("ENTER-SHORT_SOLUSDT_sol short1_y4lterg7bhtu3w7g", alert.freq_once_per_bar)
+////alertcondition(bull_cross, title='Bullish EMA LONG', message='ENTER-SHORT_SOLUSDT_sol short1_y4lterg7bhtu3w7g')
+//alertcondition(bear_cross, title='Bearish EMA EXIT', message='ENTER-SHORT_SOLUSDT_sol short1_y4lterg7bhtu3w7g') 
+
+
+
+
+plot(price, title="price", color=color.black, transp=50, linewidth=2)
+a0 = plot(average, title="average", color=color.red, transp=50, linewidth=1)
+a1 = plot(bull_level, title="bull", color=color.green, transp=50, linewidth=1)
+a2 = plot(bear_level, title="bear", color=color.red, transp=50, linewidth=1)
+fill(a0, a1, color=color.green, transp=97)
+fill(a0, a2, color=color.red, transp=97)
+
