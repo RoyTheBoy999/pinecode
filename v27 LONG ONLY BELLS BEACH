@@ -1,0 +1,214 @@
+//@version=5
+strategy("v27 Ton 15m MAD + MRS sniper", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=100)
+MADCUT = input.float(0.224,  title="MADCut Off",minval = -100, maxval = 100, step =0.01)
+BBWCUT = 1
+MRSCUTOFF = input.float(-0.1,  title="MRS Cut Off",minval = -5.00, maxval = 10.0, step =0.1)
+VOLCUTOFF = input.int(40000000, title="AveVOLCUTOFF")
+
+len = input.int(204, title="Length")
+mul = input.int(2, title="Mult")
+
+// (this is the fiinal indicator eg 15 by 4 by 4 ) was 176 bb
+
+
+price = ta.sma(close, 2)
+average = ta.ema(close, len/4)
+diff = ta.atr(len) * mul
+bull_level = average + diff
+bear_level = average - diff
+
+index = "CRYPTOCAP:TOTAL"
+sector = "CRYPTOCAP:TOTAL"
+industry = "CRYPTOCAP:TOTAL"
+var istriggeredL = false
+var istriggeredS = true
+var lastsignal = false
+
+ma_type = input.string(title='Which moving average to use?', defval='SMA', options=['SMA', 'WMA', 'EMA'])
+len_daily = input(title='MA length for Daily', defval=200)
+len_weekly = input(title='MA length for Weekly', defval=52)
+len_monthly = input(title='MA length for Monthly', defval=10)
+len_other = input(title='MA length for all other periods', defval=52)
+val = close
+
+len1 = timeframe.period == 'W' ? len_weekly : timeframe.period == 'D' ? len_daily : timeframe.period == 'M' ? len_monthly : len_other
+
+ma_func(x, length) =>
+    wma_1 = ta.wma(x, length)
+    sma_1 = ta.sma(x, length)
+    ema_1 = ta.ema(x, length)
+    ma_type == 'WMA' ? wma_1 : ma_type == 'SMA' ? sma_1 : ema_1
+
+calc_mrs_func(x, ind, length) =>
+    (x / request.security(ind, timeframe.period, x) / ma_func(x / request.security(ind, timeframe.period, x), length) - 1) * 10
+
+mrs_index = calc_mrs_func(val, index, len)
+mrs_sector = calc_mrs_func(val, sector, len)
+mrs_industry = calc_mrs_func(val, industry, len)
+c = math.sign(mrs_index) + math.sign(mrs_sector) + math.sign(mrs_industry)
+mrs_index2 = calc_mrs_func(val, index, 50)
+
+
+//Functions
+
+    //Pro Advance/Decline Gradient
+
+f_c_gradientAdvDecPro(_source, _center, _steps, _c_bearWeak, _c_bearStrong, _c_bullWeak, _c_bullStrong) =>
+    var float _qtyAdvDec = 0.
+    var float _maxSteps = math.max(1, _steps)
+    bool _xUp = ta.crossover(_source, _center)
+    bool _xDn = ta.crossunder(_source, _center)
+    float _chg = ta.change(_source)
+    bool _up = _chg > 0
+    bool _dn = _chg < 0
+    bool _srcBull = _source > _center
+    bool _srcBear = _source < _center
+    _qtyAdvDec := _srcBull ? _xUp ? 1 : _up ? math.min(_maxSteps, _qtyAdvDec + 1) : _dn ? math.max(1, _qtyAdvDec - 1) : _qtyAdvDec : _srcBear ? _xDn ? 1 : _dn ? math.min(_maxSteps, _qtyAdvDec + 1) : _up ? math.max(1, _qtyAdvDec - 1) : _qtyAdvDec : _qtyAdvDec
+    var color _return = na
+    _return := _srcBull ? color.from_gradient(_qtyAdvDec, 1, _maxSteps, _c_bullWeak, _c_bullStrong) : _srcBear ? color.from_gradient(_qtyAdvDec, 1, _maxSteps, _c_bearWeak, _c_bearStrong) : _return
+    _return
+
+
+    //Moving Average Type
+
+mat(source, length, type) =>
+    type == 'SMA' ? ta.sma(source, length) : type == 'EMA' ? ta.ema(source, length) : type == 'RMA' ? ta.rma(source, length) : type == 'WMA' ? ta.wma(source, length) : type == 'VWMA' ? ta.vwma(source, length) : type == 'HMA' ? ta.hma(source, length) : type == 'TMA' ? ta.sma(ta.sma(source, length), length) : na
+
+//Inputs
+bull = input(color.rgb(0, 255, 0), title='Bull Color')
+bear = input(color.rgb(255, 0, 0), title='Bear Color')
+neutral = input(color.rgb(255, 255, 0, 0), title='Neutral Color')
+show_ma = input.bool(true, 'MA', inline='MA')
+//ma_type = input.string('SMA', '', inline='MA', options=['SMA', 'EMA', 'RMA', 'WMA', 'HMA', 'VWMA', 'TMA'])
+ma_source = input.source(close, '', inline='MA')
+ma_length = input.int(200, '', inline='MA', minval=1)
+stepn = input(200, title='Max Gradient Steps')
+
+//Calculations
+ma = mat(ma_source, ma_length, ma_type)
+col = f_c_gradientAdvDecPro(ma, ta.ema(ma, 3), stepn, neutral, bear, neutral, bull)
+
+//Plot
+plot(show_ma ? ma : na, color=col, title='MA', linewidth=2)
+
+
+
+
+
+color_1 = color.new(color.green, 80)
+color_2 = color.new(color.green, 75)
+color_3 = color.new(color.green, 70)
+color_4 = color.new(color.red, 70)
+color_5 = color.new(color.red, 75)
+color_6 = color.new(color.red, 80)
+bgcolor(c == 3 ? color_1 : c == 2 ? color_2 : c == 1 ? color_3 : c == -1 ? color_4 : c == -2 ? color_5 : c == -3 ? color_6 : color.gray)
+//plot(mrs_index, linewidth=3, title="MRS index")
+plot(mrs_sector != mrs_index ? mrs_sector : na, linewidth=2, title="MRS sector")
+plot(mrs_industry != mrs_index ? mrs_industry : na, linewidth=1, title="MRS industry")
+hline(price=0, linestyle=hline.style_dashed, title="Zero baseline")
+
+len_50 = 50
+len_150 = 150
+len_200 = 200
+sma_50 = ta.sma(close, len_50)
+sma_150 = ta.sma(close, len_150)
+sma_200 = ta.sma(close, len_200)
+
+len_rsi = 14
+rsi = ta.rsi(close, len_rsi)
+rsi_ma = ta.sma(rsi, len_rsi)
+mansfield_rs = (rsi - rsi_ma) / rsi_ma
+
+lengthX = 20
+srcX    = close
+multX   = 2.0
+
+expansionLengthInput   = 125
+contractionLengthInput = 125
+
+basis = ta.sma(srcX, lengthX)
+dev   = multX * ta.stdev(srcX, lengthX)
+upper = basis + dev
+lower = basis - dev
+bbw   = ((upper - lower) / basis) * 100
+
+var cumVol = 0.
+cumVol += nz(volume)
+if barstate.islast and cumVol == 0
+    runtime.error("No volume is provided by the data vendor.")
+nv = math.sign(ta.change(close)) * volume
+
+len_vol_avg20 = 7
+vol_avg20 = ta.sma(volume, len_vol_avg20)
+len_vol_avg80 = 28
+vol_avg80 = ta.sma(volume, len_vol_avg80)
+
+stage_2_signal = (close > sma_150 and sma_150 >= sma_200 and sma_50 >= sma_150 and sma_50 >= sma_200 and close > sma_50 and mansfield_rs > 0 and volume > vol_avg20) //sma_150 >= sma_200 and sma_50 >= sma_150 and sma_50 >= sma_200 and close > sma_50 and 
+
+bull_cross =   mrs_index>MRSCUTOFF and close >sma_200 and (close - sma_150)>MADCUT and ma>ta.ema(ma, 3) and ta.change(ma)>0 //and bbw>BBWCUT nv>NVCUT andand stage_2_signaland mrs_index>MRSCUTOFF //and mansfield_rs >0.1 ////and volume > VOLCUTOFF ////mrs_index >1.5 and close >bull_level and
+bear_cross =   mrs_index<MRSCUTOFF and ma<ta.ema(ma, 3) and ta.change(ma)<0 or close <sma_200 //bbw< BBWCUT and or mrs_index<MRSCUTOFF or mansfield_rs <0.1//ma<ta.ema(ma, 3) and ta.change(ma)<0 and close <sma_50 and mrs_index<MRSCUTOFF and volume < VOLCUTOFF
+bear_cross1 =  bbw < 5 or close <sma_50 or mrs_index<MRSCUTOFF or mansfield_rs< 0.5//ma<ta.ema(ma, 3) or ta.change(ma)<0 or close <sma_200
+bull_cross1 =  ma>ta.ema(ma, 3) or ta.change(ma)>0 or close >sma_200//or mrs_index<-0.5 or close < ma//not stage_2_signal //mrs_index <1.5 or close <bull_level //or
+//bull_cross = ta.crossover(price, bull_level) and mrs_index >1
+//bear_cross = ta.crossover(bear_level, price) and mrs_index <1
+//bull_cross2 = mrs_index >1.5 or close >bear_level //and stage_2_signal
+//bear_cross2 = mrs_index <-1.5 and close <bear_level and not stage_2_signal
+
+
+strategy.entry("Buy", strategy.long, when=bull_cross)
+strategy.close("Buy Exit", when=bear_cross)  //strategy.entry("Sell", strategy.short, when=bear_cross)//if(bull_cross)
+   
+strategy.entry("Short", strategy.short, when=bear_cross)
+strategy.close("Exit Short ", when=bull_cross)
+
+
+if bull_cross and ta.barssince(bull_cross) //not lastsignal and istriggeredS
+    alert("ENTER-LONG_TONCOINUSDT_tonl250_3lmgxh7yexa0hxtm", alert.freq_once_per_bar)  
+    alert("ENTER-LONG_TONCOINUSDT_tonl200_r0dopg90metcm8k7", alert.freq_once_per_bar) //
+    //alert("EXIT-SHORT_STXUSDT_stxsh_bfhsuqs7qimtghs7", alert.freq_once_per_bar)// 
+    //alert("ENTER-LONG_PEOPLEUSDT_peoplelong_mg495dp2nnaigrmj", alert.freq_once_per_bar)
+    //alert("EXIT-SHORT_PEOPLEUSDT_peopleshort_6nh451o6s5wc0o8v", alert.freq_once_per_bar)// 
+    istriggeredL = true
+    lastsignal = true
+    istriggeredS = false
+if bear_cross and ta.barssince(bear_cross)
+    alert("EXIT-LONG_TONCOINUSDT_tonl250_26r5cpud829myenz", alert.freq_once_per_bar) 
+    alert("EXIT-LONG_TONCOINUSDT_tonl200_81lvwcddimex1v9b", alert.freq_once_per_bar)//
+    //alert("ENTER-SHORT_STXUSDT_stxsh_hpre0z31jwv2or36", alert.freq_once_per_bar)// 
+    //alert("EXIT-LONG_PEOPLEUSDT_peoplelong_21ijpx2m6t1ssvmi", alert.freq_once_per_bar)
+    //alert("ENTER-SHORT_PEOPLEUSDT_peopleshort_09kku8u2zs2m0oxk", alert.freq_once_per_bar)/// 
+    istriggeredL = false
+    lastsignal = false
+    istriggeredS = true
+alertcondition(bull_cross and ta.barssince(bull_cross), title='Bullish EMA LONG', message='ENTER-LONG_TONCOINUSDT_tonl250_3lmgxh7yexa0hxtm') 
+alertcondition(bull_cross and ta.barssince(bull_cross), title='Bullish EMA LONG', message='ENTER-LONG_TONCOINUSDT_tonl200_r0dopg90metcm8k7') //
+//alertcondition(bull_cross, title='Bullish EMA LONG', message='EXIT-SHORT_STXUSDT_stxsh_bfhsuqs7qimtghs7')//
+//alertcondition(bull_cross, title='Bullish EMA LONG', message='ENTER-LONG_PEOPLEUSDT_peoplelong_mg495dp2nnaigrmj') 
+//alertcondition(bull_cross, title='Bullish EMA LONG', message='EXIT-SHORT_PEOPLEUSDT_peopleshort_6nh451o6s5wc0o8v')// 
+alertcondition(bear_cross and istriggeredL and lastsignal, title='Bearish EMA EXIT', message='EXIT-LONG_TONCOINUSDT_tonl250_26r5cpud829myenz') 
+alertcondition(bear_cross and istriggeredL and lastsignal, title='Bearish EMA EXIT', message='EXIT-LONG_TONCOINUSDT_tonl200_81lvwcddimex1v9b')//
+//alertcondition(bear_cross, title='Bearish EMA EXIT', message='ENTER-SHORT_STXUSDT_stxsh_hpre0z31jwv2or36') //
+//alertcondition(bear_cross, title='Bearish EMA EXIT', message='EXIT-LONG_PEOPLEUSDT_peoplelong_21ijpx2m6t1ssvmi')
+//alertcondition(bear_cross, title='Bearish EMA EXIT', message='ENTER-SHORT_PEOPLEUSDT_peopleshort_09kku8u2zs2m0oxk')// 
+//ENTER-SHORT_SOLUSDT_sol short1_y4lterg7bhtu3w7g
+//EXIT-SHORT_SOLUSDT_sol short1_0322lyk927vnlgxk
+
+//if bear_cross
+ //   alert("ENTER-SHORT_SOLUSDT_sol short1_y4lterg7bhtu3w7g", alert.freq_once_per_bar)  // alert.freq_once_per_bar_close
+//if bull_cross 
+//    alert("ENTER-SHORT_SOLUSDT_sol short1_y4lterg7bhtu3w7g", alert.freq_once_per_bar)
+////alertcondition(bull_cross, title='Bullish EMA LONG', message='ENTER-SHORT_SOLUSDT_sol short1_y4lterg7bhtu3w7g')
+//alertcondition(bear_cross, title='Bearish EMA EXIT', message='ENTER-SHORT_SOLUSDT_sol short1_y4lterg7bhtu3w7g') 
+
+
+
+
+plot(price, title="price", color=color.black, transp=50, linewidth=2)
+a0 = plot(sma_200, title="average", color=color.yellow, transp=50, linewidth=4)
+a1 = plot(bull_level, title="bull", color=color.green, transp=50, linewidth=1)
+a2 = plot(bear_level, title="bear", color=color.red, transp=50, linewidth=1)
+fill(a0, a1, color=color.green, transp=97)
+fill(a0, a2, color=color.red, transp=97)
+
+
+//strategy.close("Buy Exit", when=bear_cross)  //strategy.entry("Sell", strategy.short, when=bear_cross)
